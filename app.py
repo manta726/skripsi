@@ -59,6 +59,7 @@ pg = st.navigation(
         st.Page(beranda, title="Beranda", default=True),
         st.Page("pages/1_Enrollment.py", title="Enrollment"),
         st.Page("pages/2_Proses_Video.py", title="Proses Video"),
+        st.Page("pages/3_Info_Sistem.py", title="Info Sistem"),
     ],
     position="sidebar",
 )

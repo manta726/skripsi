@@ -8,7 +8,9 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Info Sistem", layout="wide")
+from core import storage, ui_theme
+
+storage.ensure_dirs()
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,11 +37,13 @@ def sha256_file(path):
     return h.hexdigest().upper()
 
 
-st.title("Info Sistem")
-st.caption("Versi perangkat lunak dan sidik file (hash) untuk dokumentasi reproduksibilitas.")
+ui_theme.page_header(
+    "Info sistem",
+    "Versi perangkat lunak dan sidik file (SHA256) untuk dokumentasi reproduksibilitas.",
+)
 
 # ---------- Lingkungan ----------
-st.subheader("Lingkungan")
+ui_theme.section("Lingkungan")
 lingk = [
     ("Python", platform.python_version()),
     ("Interpreter", sys.executable),
@@ -53,19 +57,19 @@ try:
 except Exception:
     pass
 df_lingk = pd.DataFrame(lingk, columns=["Item", "Nilai"])
-st.dataframe(df_lingk, hide_index=True, use_container_width=True)
+st.dataframe(df_lingk, hide_index=True, width="stretch")
 
 if "cctv_streamlit" not in sys.executable.lower():
     st.warning("Interpreter ini tampaknya bukan venv proyek cctv_streamlit. "
                "Versi di bawah mungkin bukan versi yang dipakai untuk data skripsi.")
 
 # ---------- Paket ----------
-st.subheader("Versi library")
+ui_theme.section("Versi library")
 df_paket = pd.DataFrame([(n, versi_paket(n)) for n in PAKET], columns=["Paket", "Versi"])
-st.dataframe(df_paket, hide_index=True, use_container_width=True)
+st.dataframe(df_paket, hide_index=True, width="stretch")
 
 # ---------- Hash file ----------
-st.subheader("Sidik file (SHA256)")
+ui_theme.section("Sidik file (SHA256)")
 daftar = [ROOT / "app.py", ROOT / "yolov8n.pt", ROOT / "workspace" / "gallery.pkl"]
 daftar += sorted((ROOT / "core").glob("*.py"))
 daftar += sorted((ROOT / "pages").glob("*.py"))
@@ -77,10 +81,10 @@ for p in daftar:
     else:
         baris.append((str(p.relative_to(ROOT)), 0, "FILE TIDAK ADA"))
 df_hash = pd.DataFrame(baris, columns=["File", "Ukuran (byte)", "SHA256"])
-st.dataframe(df_hash, hide_index=True, use_container_width=True)
+st.dataframe(df_hash, hide_index=True, width="stretch")
 
 # ---------- Unduh ----------
-st.subheader("Unduh")
+ui_theme.section("Unduh")
 gabung = pd.concat([
     df_lingk.rename(columns={"Item": "Nama", "Nilai": "Nilai"}).assign(Kelompok="Lingkungan"),
     df_paket.rename(columns={"Paket": "Nama", "Versi": "Nilai"}).assign(Kelompok="Library"),
