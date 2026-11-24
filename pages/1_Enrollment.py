@@ -17,6 +17,7 @@ def _konfirmasi_hapus(uid, jumlah):
         db_hapus = storage.load_raw_db()
         db_hapus.pop(uid, None)
         storage.save_raw_db(db_hapus)
+        storage.delete_enroll_photos(uid)
         st.session_state["flash_hapus"] = f"{uid} dihapus dari galeri."
         st.rerun()
 
@@ -33,6 +34,7 @@ def _proses_embedding(groups, replace):
             results, embs = enrollment.enroll_files(face_app, fls)
             if embs:
                 enrollment.add_to_db(db, uid, embs, replace=replace)
+                storage.save_enroll_photos(uid, fls, replace=replace)
             for r in results:
                 detail.append({"ID": uid, **r})
             ringkasan.append({
@@ -199,6 +201,20 @@ with tab_galeri:
             victim = st.selectbox("Pilih user", sorted(db))
             if st.button("Hapus user"):
                 _konfirmasi_hapus(victim, len(db[victim]))
+
+        ui_theme.section(
+            "Foto enrollment",
+            "Foto asli yang tersimpan di workspace/enrollment. Foto yang didaftarkan sebelum "
+            "fitur ini tidak tersedia, karena hanya embedding-nya yang tersimpan.",
+        )
+        uid_lihat = st.selectbox("Pilih user", sorted(db), key="lihat_foto_uid")
+        fotos = storage.list_enroll_photos(uid_lihat)
+        if fotos:
+            kolom = st.columns(6)
+            for i, foto in enumerate(fotos):
+                kolom[i % 6].image(str(foto), width="stretch", caption=f"Foto {i + 1}")
+        else:
+            st.caption("Belum ada foto tersimpan untuk user ini.")
     else:
         st.info("Galeri masih kosong. Tambahkan karyawan pada tab Tambah karyawan.")
 
