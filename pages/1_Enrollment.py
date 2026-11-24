@@ -5,6 +5,21 @@ import streamlit as st
 from core import storage, models, enrollment, ui_theme
 
 storage.ensure_dirs()
+
+@st.dialog("Hapus user dari galeri?", width="small")
+def _konfirmasi_hapus(uid, jumlah):
+    st.write(f"Seluruh {jumlah} embedding milik {uid} akan dihapus. Tindakan ini tidak dapat dibatalkan.")
+    c1, c2 = st.columns(2)
+    if c1.button("Batal", width="stretch"):
+        st.rerun()
+    if c2.button("Hapus", type="primary", width="stretch"):
+        db_hapus = storage.load_raw_db()
+        db_hapus.pop(uid, None)
+        storage.save_raw_db(db_hapus)
+        st.session_state["flash_hapus"] = f"{uid} dihapus dari galeri."
+        st.rerun()
+
+
 ui_theme.page_header(
     "Enrollment wajah",
     "Kelola galeri wajah karyawan yang dipakai sebagai acuan pengenalan.",
@@ -59,6 +74,8 @@ with tab_tambah:
 # ---------------- Galeri ----------------
 with tab_galeri:
     db = storage.load_raw_db()
+    if msg := st.session_state.pop("flash_hapus", None):
+        st.success(msg)
     if db:
         tbl = pd.DataFrame(
             [{"User": k, "Jumlah embedding": len(v)} for k, v in sorted(db.items())]
@@ -72,15 +89,12 @@ with tab_galeri:
         with st.container(border=True):
             ui_theme.card_title(
                 "Hapus karyawan",
-                "Tindakan ini menghapus seluruh embedding user dari galeri.",
+                "Tindakan ini menghapus seluruh embedding user dari galeri. "
+                "Anda akan diminta konfirmasi terlebih dahulu.",
             )
             victim = st.selectbox("Pilih user", sorted(db))
-            sure = st.checkbox("Saya yakin ingin menghapus user ini")
-            if st.button("Hapus user", disabled=not sure):
-                db.pop(victim, None)
-                storage.save_raw_db(db)
-                st.success(f"{victim} dihapus.")
-                st.rerun()
+            if st.button("Hapus user"):
+                _konfirmasi_hapus(victim, len(db[victim]))
     else:
         st.info("Galeri masih kosong. Tambahkan karyawan pada tab Tambah karyawan.")
 

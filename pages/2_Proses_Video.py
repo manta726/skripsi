@@ -16,10 +16,11 @@ if not raw_db:
     st.stop()
 gallery = P.build_gallery(raw_db)
 st.caption(f"Galeri: {len(gallery)} user | SHA256 `{storage.sha256_file(storage.GALLERY)[:16]}...`")
+indikator = st.empty()  # diisi di akhir run, setelah status setiap langkah diketahui
 
 # ---------------- 1. Unggah klip ----------------
 with st.container(border=True):
-    ui_theme.card_title("1. Unggah klip", "Boleh lebih dari satu file. Format: mp4, avi, mov, mkv.")
+    ui_theme.card_title("Unggah klip", "Boleh lebih dari satu file. Format: mp4, avi, mov, mkv.")
     files = st.file_uploader(
         "Klip rekaman",
         type=["mp4", "avi", "mov", "mkv"],
@@ -35,7 +36,7 @@ gt_df = None
 if files:
     with st.container(border=True):
         ui_theme.card_title(
-            "2. Ground truth",
+            "Ground truth",
             "Diisi otomatis dari nama file, contoh K017_H1_IN.mp4. Koreksi bila perlu. "
             "Hari H1 dan H2 masuk set PENGEMBANGAN, selain itu set UJI.",
         )
@@ -69,7 +70,7 @@ if files:
 # ---------------- 3. Garis ----------------
 with st.container(border=True):
     ui_theme.card_title(
-        "3. Garis crossing",
+        "Garis crossing",
         "Arah MASUK atau KELUAR ditentukan oleh arah garis, dari Start ke End. "
         "Uji dengan satu klip yang arahnya diketahui, lalu tekan Tukar arah bila terbalik.",
     )
@@ -117,38 +118,46 @@ with st.container(border=True):
             st.error("Gagal membaca frame pertama.")
 
 # ---------------- 4. Parameter ----------------
-with st.container(border=True):
-    ui_theme.card_title(
-        "4. Parameter",
-        "Parameter utama ditampilkan di sini. Parameter lanjutan ada di bagian bawah.",
-    )
-    a, b, c3 = st.columns(3)
-    thr = a.slider("Ambang pengenalan (RECOGNITION_THRESHOLD)", 0.10, 0.90,
-                   float(P.RECOGNITION_THRESHOLD), 0.01)
-    yconf = b.slider("Confidence YOLO (YOLO_CONF)", 0.05, 0.90, float(P.YOLO_CONF), 0.01)
-    imgsz = c3.selectbox("Ukuran input YOLO (YOLO_IMGSZ)", [640, 960, 1280], index=2)
+# Fragment: mengubah parameter hanya menjalankan ulang bagian ini, bukan seluruh halaman.
+@st.fragment
+def bagian_parameter():
+    with st.container(border=True):
+        ui_theme.card_title(
+            "Parameter",
+            "Parameter utama ditampilkan di sini. Parameter lanjutan ada di bagian bawah.",
+        )
+        a, b, c3 = st.columns(3)
+        thr = a.slider("Ambang pengenalan (RECOGNITION_THRESHOLD)", 0.10, 0.90,
+                       float(P.RECOGNITION_THRESHOLD), 0.01)
+        yconf = b.slider("Confidence YOLO (YOLO_CONF)", 0.05, 0.90, float(P.YOLO_CONF), 0.01)
+        imgsz = c3.selectbox("Ukuran input YOLO (YOLO_IMGSZ)", [640, 960, 1280], index=2)
 
-    opsi_arah = ["net", "pertama", "terakhir"]
-    d, e, f_ = st.columns(3)
-    aturan = d.selectbox(
-        "Aturan arah (ATURAN_ARAH)", opsi_arah,
-        index=opsi_arah.index(P.ATURAN_ARAH) if P.ATURAN_ARAH in opsi_arah else 0,
-        help="net: selisih MASUK-KELUAR, seri = crossing terakhir (perilaku skrip lama). "
-             "pertama: crossing pertama. terakhir: crossing terakhir.",
-    )
-    tol = e.number_input("Toleransi waktu (TOLERANSI_WAKTU_S, detik)", 0.5, 10.0,
-                         float(P.TOLERANSI_WAKTU_S), 0.5)
-    save_vid = f_.checkbox("Simpan video beranotasi", value=True)
-    st.caption("Video beranotasi menambah waktu (anotasi, penulisan, dan konversi H.264). "
-               "Untuk pengukuran waktu yang bersih, matikan opsi ini.")
+        opsi_arah = ["net", "pertama", "terakhir"]
+        d, e, f_ = st.columns(3)
+        aturan = d.selectbox(
+            "Aturan arah (ATURAN_ARAH)", opsi_arah,
+            index=opsi_arah.index(P.ATURAN_ARAH) if P.ATURAN_ARAH in opsi_arah else 0,
+            help="net: selisih MASUK-KELUAR, seri = crossing terakhir (perilaku skrip lama). "
+                 "pertama: crossing pertama. terakhir: crossing terakhir.",
+        )
+        tol = e.number_input("Toleransi waktu (TOLERANSI_WAKTU_S, detik)", 0.5, 10.0,
+                             float(P.TOLERANSI_WAKTU_S), 0.5)
+        save_vid = f_.checkbox("Simpan video beranotasi", value=True)
+        st.caption("Video beranotasi menambah waktu (anotasi, penulisan, dan konversi H.264). "
+                   "Untuk pengukuran waktu yang bersih, matikan opsi ini.")
 
-    with st.expander("Parameter lanjutan"):
-        g1, g2, g3, g4 = st.columns(4)
-        skip = g1.number_input("FACE_REC_SKIP_FRAMES", 1, 30, int(P.FACE_REC_SKIP_FRAMES))
-        crop = g2.radio("CROP_MODE", ["body", "head"], horizontal=True,
-                        index=0 if P.CROP_MODE == "body" else 1)
-        move = g3.number_input("MIN_MOVE_EXTENT (px)", 0, 2000, int(P.MIN_MOVE_EXTENT))
-        minface = g4.number_input("MIN_FACE_SIZE (px)", 5, 300, int(P.MIN_FACE_SIZE))
+        with st.expander("Parameter lanjutan"):
+            g1, g2, g3, g4 = st.columns(4)
+            skip = g1.number_input("FACE_REC_SKIP_FRAMES", 1, 30, int(P.FACE_REC_SKIP_FRAMES))
+            crop = g2.radio("CROP_MODE", ["body", "head"], horizontal=True,
+                            index=0 if P.CROP_MODE == "body" else 1)
+            move = g3.number_input("MIN_MOVE_EXTENT (px)", 0, 2000, int(P.MIN_MOVE_EXTENT))
+            minface = g4.number_input("MIN_FACE_SIZE (px)", 5, 300, int(P.MIN_FACE_SIZE))
+    return (thr, yconf, imgsz, aturan, tol, save_vid, skip, crop, move, minface)
+
+
+(thr, yconf, imgsz, aturan, tol, save_vid,
+ skip, crop, move, minface) = bagian_parameter()
 
 # ---------------- 5. Proses ----------------
 start = st.button("Mulai proses", type="primary", disabled=not files)
@@ -231,8 +240,17 @@ if start:
         P, storage.GALLERY, gallery, len(runs)
     )
 
-# ---------------- 6. Hasil ----------------
+# ---------------- Indikator langkah ----------------
 runs = st.session_state.get("runs")
+indikator.markdown(
+    ui_theme.steps_html(
+        ["Unggah klip", "Ground truth", "Garis", "Parameter", "Proses"],
+        [bool(files), gt_df is not None, bool(files), bool(files), bool(runs)],
+    ),
+    unsafe_allow_html=True,
+)
+
+# ---------------- 6. Hasil ----------------
 if runs:
     st.divider()
     ui_theme.section("Hasil", "Ringkasan seluruh klip pada proses terakhir.")

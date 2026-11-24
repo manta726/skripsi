@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-from core import report
+from core import report, ui_theme
 
 
 def render_overall(runs, cfg_df):
@@ -92,12 +92,16 @@ def render_clip(run):
             c[3].metric("ms/frame (YOLO+ByteTrack)",
                         f"{1000*info['timing']['yolo']/n:.0f}")
             st.caption("Jumlah deteksi per frame")
-            st.line_chart(pd.DataFrame({"Deteksi per frame": info["dets_per_frame"]}))
+            dpf = pd.DataFrame({"Frame": range(len(info["dets_per_frame"])),
+                                "Deteksi": info["dets_per_frame"]})
+            ui_theme.line_chart(dpf, "Frame", "Deteksi")
             st.caption("Distribusi confidence deteksi")
             hist, edges = np.histogram(dl["Conf"], bins=10, range=(0.0, 1.0))
-            st.bar_chart(pd.DataFrame(
-                {"Jumlah": hist},
-                index=[f"{edges[i]:.1f}-{edges[i+1]:.1f}" for i in range(len(hist))]))
+            hdf = pd.DataFrame({
+                "Rentang": [f"{edges[i]:.1f}-{edges[i+1]:.1f}" for i in range(len(hist))],
+                "Jumlah": hist,
+            })
+            ui_theme.bar_chart(hdf, "Rentang", "Jumlah")
             with st.expander("Log deteksi (2000 baris pertama)"):
                 st.dataframe(dl.head(2000), hide_index=True)
         st.caption("Waktu YOLO dan ByteTrack berasal dari satu panggilan track() sehingga "
@@ -114,7 +118,10 @@ def render_clip(run):
         c[3].metric("Subjek", f"T{info['subject_tid']}" if info["subject_tid"] is not None else "-")
         if not tr.empty:
             st.caption("Jumlah frame terlihat dan jangkauan gerak per track")
-            st.bar_chart(tr.set_index("Track")[["Frames_Seen", "Extent_px"]])
+            tlong = tr.melt(id_vars="Track", value_vars=["Frames_Seen", "Extent_px"],
+                            var_name="Metrik", value_name="Nilai")
+            tlong["Track"] = tlong["Track"].astype(str)
+            ui_theme.bar_chart(tlong, "Track", "Nilai", color="Metrik", offset="Metrik")
             st.dataframe(tr, hide_index=True)
         cr = pd.DataFrame(info["cross_rows"])
         st.caption("Kejadian crossing")
@@ -147,7 +154,9 @@ def render_clip(run):
                                  values="Best_Score", aggfunc="mean")
             piv.columns = [f"T{c_}" for c_ in piv.columns]
             st.caption("Skor cosine terbaik per frame, satu garis per track")
-            st.line_chart(piv)
+            plong = piv.reset_index().melt(id_vars="Frame", var_name="Track", value_name="Skor")
+            plong = plong.dropna(subset=["Skor"])
+            ui_theme.line_chart(plong, "Frame", "Skor", color="Track")
             st.caption("Skor cosine terbaik per observasi. Observasi dengan skor di bawah "
                        "threshold dicatat sebagai Unknown pada pemungutan suara track.")
             with st.expander("Log observasi (2000 baris pertama)"):
@@ -170,7 +179,7 @@ def render_clip(run):
         c[3].metric("RAM puncak", f"{row['RAM_Puncak_MB']} MB")
         st.dataframe(comp, hide_index=True)
         st.caption("Waktu per komponen (detik)")
-        st.bar_chart(comp.set_index("Komponen")["Detik"])
+        ui_theme.bar_chart(comp, "Komponen", "Detik")
         flags = []
         if row["Is_Warmup"]:
             flags.append("klip ini adalah warm-up (jangan masuk statistik waktu)")
