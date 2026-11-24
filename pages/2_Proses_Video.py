@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import cv2
 import pandas as pd
 import streamlit as st
@@ -235,32 +237,54 @@ if start:
         overall.progress(1.0, text="Selesai")
         status.update(label=f"Selesai: {len(runs)} klip diproses", state="complete", expanded=False)
 
-    st.session_state["runs"] = runs
-    st.session_state["cfg_df"] = report.build_config_df(
-        P, storage.GALLERY, gallery, len(runs)
-    )
+    if runs:
+        # Hasil disimpan ke folder run agar tetap bisa dibuka setelah aplikasi ditutup.
+        cfg_df = report.build_config_df(P, storage.GALLERY, gallery, len(runs))
+        storage.save_run_state(run_dir, runs, cfg_df, report.build_excel(runs, cfg_df))
+        st.session_state["run_aktif"] = run_dir.name
+        st.toast("Hasil proses disimpan.")
 
 # ---------------- Indikator langkah ----------------
-runs = st.session_state.get("runs")
+riwayat = storage.list_saved_runs()
 indikator.markdown(
     ui_theme.steps_html(
         ["Unggah klip", "Ground truth", "Garis", "Parameter", "Proses"],
-        [bool(files), gt_df is not None, bool(files), bool(files), bool(runs)],
+        [bool(files), gt_df is not None, bool(files), bool(files), bool(riwayat)],
     ),
     unsafe_allow_html=True,
 )
 
 # ---------------- 6. Hasil ----------------
-if runs:
+if riwayat:
     st.divider()
-    ui_theme.section("Hasil", "Ringkasan seluruh klip pada proses terakhir.")
-    ui_results.render_overall(runs, st.session_state.get("cfg_df"))
+    ui_theme.section(
+        "Hasil",
+        "Setiap proses disimpan di workspace/outputs dan tetap tersedia setelah aplikasi dibuka ulang.",
+    )
+
+    def _label_run(d):
+        try:
+            waktu_run = datetime.strptime(d.name, "run_%Y%m%d_%H%M%S").strftime("%d-%m-%Y %H:%M:%S")
+        except ValueError:
+            waktu_run = d.name
+        return f"Proses {waktu_run}"
+
+    nama_run = [d.name for d in riwayat]
+    aktif = st.session_state.get("run_aktif")
+    idx = nama_run.index(aktif) if aktif in nama_run else 0
+    pilih_run = st.selectbox(
+        "Pilih hasil proses",
+        nama_run,
+        index=idx,
+        format_func=lambda n: _label_run(storage.OUTPUTS / n),
+    )
+    st.session_state["run_aktif"] = pilih_run
+    state = storage.load_run_state(storage.OUTPUTS / pilih_run)
+    runs_tampil, cfg_tampil = state["runs"], state["cfg_df"]
+
+    ui_results.render_overall(runs_tampil, cfg_tampil)
     st.divider()
     ui_theme.section("Detail per klip")
-    names = [r["row"]["Path_Video"] for r in runs]
+    names = [r["row"]["Path_Video"] for r in runs_tampil]
     sel = st.selectbox("Pilih klip", names)
-    ui_results.render_clip(runs[names.index(sel)])
-    st.write("")
-    if st.button("Bersihkan hasil dari layar"):
-        st.session_state.pop("runs", None)
-        st.rerun()
+    ui_results.render_clip(runs_tampil[names.index(sel)])
