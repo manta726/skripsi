@@ -1,4 +1,6 @@
+import os
 import re
+
 import cv2
 import numpy as np
 
@@ -66,3 +68,21 @@ def add_to_db(db, user, embs, replace=False):
     else:
         db[user] = list(db[user]) + list(embs)
     return db
+
+
+def id_from_filename(name):
+    """K001_depan.jpg -> K001. Awalan sebelum '_' dianggap ID karyawan."""
+    stem = os.path.splitext(os.path.basename(name))[0]
+    return stem.split("_")[0].strip().upper()
+
+
+def group_files_by_id(files):
+    """-> ({ID: [file, ...]}, [nama file yang awalannya bukan ID valid])"""
+    groups, invalid = {}, []
+    for fl in files:
+        uid = id_from_filename(fl.name)
+        if valid_id(uid):
+            groups.setdefault(uid, []).append(fl)
+        else:
+            invalid.append(fl.name)
+    return groups, invalid
