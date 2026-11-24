@@ -13,20 +13,6 @@ def render_overall(runs, cfg_df):
     c[2].metric("Akurasi line crossing", f"{m['acc_action']:.1f}%")
     c[3].metric("End-to-end", f"{m['acc_overall']:.1f}%")
     c[4].metric("CI95 Wilson", f"{m['lo']:.1f}-{m['hi']:.1f}%")
-    st.markdown("**Kinerja tiap model (per klip)**")
-    perf = report.model_perf_df(runs)
-    st.dataframe(perf, hide_index=True)
-    rekap = report.rekap_absensi(df)
-    if not rekap.empty:
-        st.markdown("**Rekap absensi (hasil sistem, per user per tanggal)**")
-        st.dataframe(rekap, hide_index=True)
-    st.markdown("**Kategori hasil**")
-    st.dataframe(pd.crosstab(df["Set"], df["Kategori"], margins=True))
-    with st.expander("Ringkasan lengkap"):
-        st.dataframe(summary, hide_index=True)
-    if cfg_df is not None:
-        with st.expander("Konfigurasi run (masuk ke sheet Konfigurasi)"):
-            st.dataframe(cfg_df, hide_index=True)
     if (df["Valid_Waktu"] == False).any():  # noqa: E712
         st.caption("Sebagian klip memakai video beranotasi, sehingga waktunya tidak valid "
                    "untuk statistik waktu. Klip pertama adalah warm-up.")
@@ -36,6 +22,29 @@ def render_overall(runs, cfg_df):
         file_name="hasil_evaluasi_streamlit.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+    tab_model, tab_rekap, tab_kat, tab_lain = st.tabs(
+        ["Kinerja model", "Rekap absensi", "Kategori", "Ringkasan dan konfigurasi"]
+    )
+    with tab_model:
+        st.caption("Kinerja tiap model dihitung per klip.")
+        st.dataframe(report.model_perf_df(runs), hide_index=True)
+    with tab_rekap:
+        rekap = report.rekap_absensi(df)
+        if rekap.empty:
+            st.info("Rekap absensi belum tersedia.")
+        else:
+            st.caption("Hasil sistem, per user per tanggal.")
+            st.dataframe(rekap, hide_index=True)
+    with tab_kat:
+        st.caption("Jumlah klip per set dan kategori hasil.")
+        st.dataframe(pd.crosstab(df["Set"], df["Kategori"], margins=True))
+    with tab_lain:
+        st.caption("Ringkasan lengkap")
+        st.dataframe(summary, hide_index=True)
+        if cfg_df is not None:
+            st.caption("Konfigurasi run (masuk ke sheet Konfigurasi)")
+            st.dataframe(cfg_df, hide_index=True)
 
 
 def render_clip(run):
@@ -82,7 +91,9 @@ def render_clip(run):
             c[2].metric("Conf rata-rata", f"{dl['Conf'].mean():.3f}")
             c[3].metric("ms/frame (YOLO+ByteTrack)",
                         f"{1000*info['timing']['yolo']/n:.0f}")
+            st.caption("Jumlah deteksi per frame")
             st.line_chart(pd.DataFrame({"Deteksi per frame": info["dets_per_frame"]}))
+            st.caption("Distribusi confidence deteksi")
             hist, edges = np.histogram(dl["Conf"], bins=10, range=(0.0, 1.0))
             st.bar_chart(pd.DataFrame(
                 {"Jumlah": hist},
@@ -102,10 +113,11 @@ def render_clip(run):
         c[2].metric("Crossing mentah", info["raw_crossings"])
         c[3].metric("Subjek", f"T{info['subject_tid']}" if info["subject_tid"] is not None else "-")
         if not tr.empty:
+            st.caption("Jumlah frame terlihat dan jangkauan gerak per track")
             st.bar_chart(tr.set_index("Track")[["Frames_Seen", "Extent_px"]])
             st.dataframe(tr, hide_index=True)
         cr = pd.DataFrame(info["cross_rows"])
-        st.markdown("**Kejadian crossing**")
+        st.caption("Kejadian crossing")
         if cr.empty:
             st.info("Tidak ada crossing.")
         else:
@@ -134,6 +146,7 @@ def render_clip(run):
             piv = ob.pivot_table(index="Frame", columns="Track",
                                  values="Best_Score", aggfunc="mean")
             piv.columns = [f"T{c_}" for c_ in piv.columns]
+            st.caption("Skor cosine terbaik per frame, satu garis per track")
             st.line_chart(piv)
             st.caption("Skor cosine terbaik per observasi. Observasi dengan skor di bawah "
                        "threshold dicatat sebagai Unknown pada pemungutan suara track.")
@@ -156,6 +169,7 @@ def render_clip(run):
         c[2].metric("RTF", row["RTF"])
         c[3].metric("RAM puncak", f"{row['RAM_Puncak_MB']} MB")
         st.dataframe(comp, hide_index=True)
+        st.caption("Waktu per komponen (detik)")
         st.bar_chart(comp.set_index("Komponen")["Detik"])
         flags = []
         if row["Is_Warmup"]:
